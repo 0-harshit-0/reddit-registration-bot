@@ -267,25 +267,20 @@ export class RedditBot {
 
   async skipAboutYou(page) {
     console.log('Step 4: Checking for "About you" page...');
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 3000));
 
-    const aboutYouModal = await page.$('auth-flow-modal[pagename="onboarding_gender_collection"]');
-    if (!aboutYouModal) {
-      console.log('No "About you" page found, continuing...');
-      return;
-    }
-
+    await page.waitForSelector('button[name="genderEnum"]', { timeout: 10000 });
     console.log('"About you" page detected');
 
     const allButtons = await page.$$("button");
+    console.log(`Found ${allButtons.length} buttons on page`);
     
     for (const button of allButtons) {
       try {
-        const text = await page.evaluate((el) => el.textContent.trim(), button);
         const name = await page.evaluate((el) => el.getAttribute('name'), button);
         
-        if (name === "skip" || text.toLowerCase() === "skip") {
-          console.log('Found Skip button, clicking...');
+        if (name === "skip") {
+          console.log('Found Skip button by name attribute, clicking...');
           await button.click();
           await this.browserManager.randomDelay(2000, 3000);
           return;
@@ -296,69 +291,44 @@ export class RedditBot {
     }
 
     console.log('Skip button not found, clicking "Man" option...');
-    for (const button of allButtons) {
-      try {
-        const text = await page.evaluate((el) => el.textContent.trim(), button);
-        if (text === "Man") {
-          console.log('Clicking "Man" button...');
-          await button.click();
-          await this.browserManager.randomDelay(2000, 3000);
-          return;
-        }
-      } catch (e) {
-        continue;
-      }
+    const manButton = await page.$('button[name="genderEnum"][value="MALE"]');
+    if (manButton) {
+      console.log('Clicking "Man" button...');
+      await manButton.click();
+      await this.browserManager.randomDelay(2000, 3000);
+      return;
     }
 
     throw new Error('Could not skip "About you" page - no Skip or Man button found');
   }
 
   async selectInterests(page) {
-    try {
-      console.log("Step 5: Checking for Interests page...");
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+    console.log("Step 5: Checking for Interests page...");
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      const pageContent = await page.evaluate(() => document.body.textContent);
-      if (!pageContent.toLowerCase().includes("interests")) {
-        console.log("Interests page not found, continuing...");
-        return false;
-      }
+    const pageContent = await page.evaluate(() => document.body.textContent);
+    if (!pageContent.toLowerCase().includes("interests")) {
+      throw new Error("Interests page not found");
+    }
 
-      console.log("Found Interests page, selecting random interests...");
+    console.log("Found Interests page, selecting random interests...");
 
-      const interestButtons = await page.$$('button[role="checkbox"]');
+    const interestButtons = await page.$$('button[role="checkbox"]');
 
-      if (interestButtons.length === 0) {
-        console.log(
-          "No interest buttons found, trying alternative selector..."
-        );
-        const altButtons = await page.$$('button:not([type="submit"])');
+    if (interestButtons.length === 0) {
+      console.log(
+        "No interest buttons found, trying alternative selector..."
+      );
+      const altButtons = await page.$$('button:not([type="submit"])');
 
-        if (altButtons.length > 5) {
-          const numToSelect = Math.floor(Math.random() * 3) + 3;
-          console.log(`Selecting ${numToSelect} random interests...`);
-
-          for (let i = 0; i < numToSelect && i < altButtons.length; i++) {
-            const randomIndex = Math.floor(Math.random() * altButtons.length);
-            try {
-              await altButtons[randomIndex].click();
-              await this.browserManager.randomDelay(300, 800);
-              console.log(`Selected interest ${i + 1}`);
-            } catch (e) {
-              console.log(`Failed to click interest ${i + 1}`);
-            }
-          }
-        }
-      } else {
+      if (altButtons.length > 5) {
         const numToSelect = Math.floor(Math.random() * 3) + 3;
-        console.log(`Selecting ${numToSelect} interests...`);
+        console.log(`Selecting ${numToSelect} random interests...`);
 
-        for (let i = 0; i < numToSelect && i < interestButtons.length; i++) {
-          const randomIndex = Math.floor(
-            Math.random() * interestButtons.length
-          );
+        for (let i = 0; i < numToSelect && i < altButtons.length; i++) {
+          const randomIndex = Math.floor(Math.random() * altButtons.length);
           try {
-            await interestButtons[randomIndex].click();
+            await altButtons[randomIndex].click();
             await this.browserManager.randomDelay(300, 800);
             console.log(`Selected interest ${i + 1}`);
           } catch (e) {
@@ -366,34 +336,46 @@ export class RedditBot {
           }
         }
       }
+    } else {
+      const numToSelect = Math.floor(Math.random() * 3) + 3;
+      console.log(`Selecting ${numToSelect} interests...`);
 
-      await this.browserManager.randomDelay(1000, 2000);
-
-      console.log("Looking for Continue button...");
-      const allButtons = await page.$$("button");
-      
-      for (const button of allButtons) {
-        const text = await page.evaluate((el) => el.textContent.trim(), button);
-        if (text.toLowerCase() === "continue") {
-          const isDisabled = await page.evaluate((btn) => btn.disabled, button);
-          if (!isDisabled) {
-            console.log("Clicking Continue...");
-            await button.click();
-            await this.browserManager.randomDelay(2000, 3000);
-            return true;
-          } else {
-            console.log("Continue button is disabled, may need to select more interests");
-          }
-          break;
+      for (let i = 0; i < numToSelect && i < interestButtons.length; i++) {
+        const randomIndex = Math.floor(
+          Math.random() * interestButtons.length
+        );
+        try {
+          await interestButtons[randomIndex].click();
+          await this.browserManager.randomDelay(300, 800);
+          console.log(`Selected interest ${i + 1}`);
+        } catch (e) {
+          console.log(`Failed to click interest ${i + 1}`);
         }
       }
-
-      return true;
-    } catch (error) {
-      console.log("Error on Interests page:", error.message);
-
-      return false;
     }
+
+    await this.browserManager.randomDelay(1000, 2000);
+
+    console.log("Looking for Continue button...");
+    const allButtons = await page.$$("button");
+    
+    for (const button of allButtons) {
+      const text = await page.evaluate((el) => el.textContent.trim(), button);
+      if (text.toLowerCase() === "continue") {
+        const isDisabled = await page.evaluate((btn) => btn.disabled, button);
+        if (!isDisabled) {
+          console.log("Clicking Continue...");
+          await button.click();
+          await this.browserManager.randomDelay(2000, 3000);
+          return;
+        } else {
+          console.log("Continue button is disabled, may need to select more interests");
+        }
+        break;
+      }
+    }
+
+    throw new Error("Could not find enabled Continue button on Interests page");
   }
 
   async handleCaptcha(page) {
