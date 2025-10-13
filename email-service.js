@@ -35,9 +35,41 @@ export class EmailService {
     console.log('Waiting for verification email...');
     
     const startTime = Date.now();
+    let attempts = 0;
+    
     while (Date.now() - startTime < timeout) {
       await this.sleep(5000);
-      console.log('Checking for verification email...');
+      attempts++;
+      console.log(`Checking for verification email (attempt ${attempts})...`);
+      
+      try {
+        const code = await this.fetchCodeFromEmail(email);
+        if (code) {
+          console.log(`Verification code received: ${code}`);
+          return code;
+        }
+      } catch (error) {
+        console.log('Error fetching code:', error.message);
+      }
+    }
+    
+    console.log('Timeout waiting for verification email');
+    return null;
+  }
+
+  async fetchCodeFromEmail(email) {
+    const response = await axios.get(`${config.email.tempMailApiUrl}/messages`, {
+      params: { email }
+    });
+    
+    if (response.data && response.data.length > 0) {
+      const latestEmail = response.data[0];
+      const htmlContent = latestEmail.html || latestEmail.body || '';
+      
+      const codeMatch = htmlContent.match(/(\d{6})/);
+      if (codeMatch) {
+        return codeMatch[1];
+      }
     }
     
     return null;

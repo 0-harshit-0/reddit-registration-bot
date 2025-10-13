@@ -3,9 +3,9 @@ import puppeteer from 'puppeteer-core';
 import { config } from './config.js';
 
 export class BrowserManager {
-  constructor(profileId) {
+  constructor(profileId, testMode = false) {
     this.profileId = profileId;
-    this.browserType = config.browser.type;
+    this.browserType = testMode ? 'test' : config.browser.type;
     this.browser = null;
     this.page = null;
   }
@@ -13,12 +13,33 @@ export class BrowserManager {
   async launch() {
     console.log(`Launching ${this.browserType} browser profile: ${this.profileId}`);
     
-    if (this.browserType === 'adspower') {
+    if (this.browserType === 'test') {
+      return await this.launchTestBrowser();
+    } else if (this.browserType === 'adspower') {
       return await this.launchAdsPower();
     } else if (this.browserType === 'multilogin') {
       return await this.launchMultilogin();
     } else {
       throw new Error('Unsupported browser type. Use "adspower" or "multilogin"');
+    }
+  }
+
+  async launchTestBrowser() {
+    try {
+      const puppeteerRegular = await import('puppeteer');
+      
+      this.browser = await puppeteerRegular.default.launch({
+        headless: false,
+        defaultViewport: null,
+        args: ['--start-maximized']
+      });
+
+      this.page = await this.browser.newPage();
+      
+      console.log('Test browser launched successfully');
+      return this.page;
+    } catch (error) {
+      throw new Error(`Failed to launch test browser: ${error.message}`);
     }
   }
 
@@ -82,8 +103,13 @@ export class BrowserManager {
   async close() {
     try {
       if (this.browser) {
-        await this.browser.disconnect();
-        console.log('Browser disconnected');
+        if (this.browserType === 'test') {
+          await this.browser.close();
+          console.log('Test browser closed');
+        } else {
+          await this.browser.disconnect();
+          console.log('Browser disconnected');
+        }
       }
 
       if (this.browserType === 'adspower') {
@@ -96,7 +122,9 @@ export class BrowserManager {
         });
       }
       
-      console.log('Browser profile closed');
+      if (this.browserType !== 'test') {
+        console.log('Browser profile closed');
+      }
     } catch (error) {
       console.error('Error closing browser:', error.message);
     }

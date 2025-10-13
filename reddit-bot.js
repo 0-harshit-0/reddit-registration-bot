@@ -4,9 +4,9 @@ import { EmailService } from "./email-service.js";
 import { config } from "./config.js";
 
 export class RedditBot {
-  constructor(profileId) {
+  constructor(profileId, testMode = false) {
     this.profileId = profileId;
-    this.browserManager = new BrowserManager(profileId);
+    this.browserManager = new BrowserManager(profileId, testMode);
     this.captchaSolver = new CaptchaSolver();
     this.emailService = new EmailService();
   }
@@ -41,7 +41,7 @@ export class RedditBot {
       await this.enterEmail(page, email);
 
       console.log("Step 2: Checking for email verification...");
-      const skipped = await this.skipEmailVerification(page);
+      const skipped = await this.skipEmailVerification(page, email);
       if (!skipped) {
         console.log(
           "Email verification page not found or cannot skip, proceeding..."
@@ -91,7 +91,7 @@ export class RedditBot {
   async enterEmail(page, email) {
     try {
       console.log("Waiting for email input field...");
-      await page.waitForTimeout(2000);
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       await page.waitForSelector('faceplate-text-input#register-email', {
         timeout: 15000,
@@ -119,7 +119,7 @@ export class RedditBot {
       await this.browserManager.randomDelay(1500, 2500);
 
       console.log("Looking for Continue button...");
-      await page.waitForTimeout(1000);
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       const continueButton = await page.waitForSelector(
         'button.continue, button.button-brand',
@@ -137,72 +137,115 @@ export class RedditBot {
     }
   }
 
-  async skipEmailVerification(page) {
+  async skipEmailVerification(page, email) {
     try {
       console.log("Looking for email verification page...");
-      await page.waitForTimeout(2000);
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
-      const skipButton = await page.$('button:has-text("Skip")');
-      if (skipButton) {
-        console.log("Found Skip button, clicking...");
-        await skipButton.click();
-        await this.browserManager.randomDelay(2000, 3000);
-        return true;
+      const verificationInput = await page.$('faceplate-text-input[name="code"]');
+      if (verificationInput) {
+        console.log("Email verification page detected");
+        
+        const skipButtons = await page.$$('button');
+        for (const button of skipButtons) {
+          const text = await page.evaluate(el => el.textContent.trim(), button);
+          if (text.toLowerCase() === 'skip') {
+            console.log("Found Skip button, clicking...");
+            await button.click();
+            await this.browserManager.randomDelay(2000, 3000);
+            return true;
+          }
+        }
+
+        console.log("Skip button not found, fetching verification code from email...");
+        const code = await this.emailService.getVerificationCode(email);
+        
+        if (code) {
+          console.log("Entering verification code...");
+          await this.enterVerificationCode(page, code);
+          return true;
+        } else {
+          throw new Error("Could not retrieve verification code");
+        }
       }
 
-      console.log("Skip button not found, checking if we can continue...");
+      console.log("No email verification page detected");
       return false;
     } catch (error) {
-      console.log("No skip option found, continuing...");
+      console.log("Error checking verification:", error.message);
       return false;
     }
   }
 
-  async fillRegistrationForm(page, username, password) {
+  async enterVerificationCode(page, code) {
     try {
-      console.log("Step 3: Filling username and password...");
+      const inputHandle = await page.evaluateHandle(() => {
+        const webComponent = document.querySelector('faceplate-text-input[name="code"]');
+        if (!webComponent || !webComponent.shadowRoot) return null;
+        return webComponent.shadowRoot.querySelector('input[type="text"]');
+      });
 
-      await page.waitForTimeout(2000);
+      if (!inputHandle) {
+        throw new Error("Could not access verification code input in shadow DOM");
+      }
 
-      console.log("Looking for username input...");
-      const usernameInput = await page.waitForSelector(
-        'input[placeholder*="Username"], input[name="username"]',
-        {
-          timeout: 15000,
-          visible: true,
-        }
-      );
-
-      await usernameInput.click();
-      await this.browserManager.randomDelay(500, 1000);
-
-      await usernameInput.click({ clickCount: 3 });
-      await page.keyboard.press("Backspace");
+      await inputHandle.click();
       await this.browserManager.randomDelay(300, 600);
-
-      console.log(`Typing username: ${username}`);
-      await usernameInput.type(username, { delay: 100 });
+      
+      await inputHandle.type(code, { delay: 100 });
       await this.browserManager.randomDelay(1500, 2500);
 
-      console.log("Looking for password input...");
-      const passwordInput = await page.waitForSelector(
-        'input[placeholder*="Password"], input[type="password"]',
+      console.log("Looking for Continue button...");
+      const continueButton = await page.waitForSelector(
+        'button.button-brand, button:has-text("Continue")',
         {
           timeout: 10000,
           visible: true,
         }
       );
 
-      await passwordInput.click();
+      console.log("Clicking Continue...");
+      await continueButton.click();
+      await this.browserManager.randomDelay(3000, 5000);
+    } catch (error) {
+      throw new Error(`Failed to enter verification code: ${error.message}`);
+    }
+  }
+
+  async fillRegistrationForm(page, username, password) {
+    try {
+      console.log("Step 3: Filling password (using Reddit's default username)...");
+
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      console.log("Looking for password input...");
+      await page.waitForSelector('faceplate-text-input#register-password', {
+        timeout: 10000,
+        visible: true,
+      });
+
+      const passwordInputHandle = await page.evaluateHandle(() => {
+        const webComponent = document.querySelector('faceplate-text-input#register-password');
+        if (!webComponent || !webComponent.shadowRoot) return null;
+        return webComponent.shadowRoot.querySelector('input[type="password"]');
+      });
+
+      if (!passwordInputHandle) {
+        throw new Error("Could not access password input in shadow DOM");
+      }
+
+      await passwordInputHandle.click();
       await this.browserManager.randomDelay(500, 1000);
 
       console.log(`Typing password`);
-      await passwordInput.type(password, { delay: 100 });
+      await passwordInputHandle.type(password, { delay: 100 });
       await this.browserManager.randomDelay(1500, 2500);
 
       console.log("Looking for Continue button...");
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       const continueButton = await page.waitForSelector(
-        'button:has-text("Continue")',
+        'button[type="submit"].create, button.create, button[type="submit"]',
         {
           timeout: 10000,
           visible: true,
@@ -220,7 +263,7 @@ export class RedditBot {
   async skipAboutYou(page) {
     try {
       console.log('Step 4: Checking for "About you" page...');
-      await page.waitForTimeout(2000);
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       const skipButton = await page.$('button:has-text("Skip")');
       if (skipButton) {
@@ -241,7 +284,7 @@ export class RedditBot {
   async selectInterests(page) {
     try {
       console.log("Step 5: Checking for Interests page...");
-      await page.waitForTimeout(2000);
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       const interestsTitle = await page.$("text=/Interests/i");
       if (!interestsTitle) {

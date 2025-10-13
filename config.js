@@ -23,7 +23,8 @@ export const config = {
   
   email: {
     provider: process.env.EMAIL_PROVIDER || 'temp-mail',
-    apiKey: process.env.EMAIL_API_KEY
+    apiKey: process.env.EMAIL_API_KEY,
+    tempMailApiUrl: process.env.TEMP_MAIL_API_URL || 'https://api.mail.tm'
   },
   
   delays: {
