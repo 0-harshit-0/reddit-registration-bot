@@ -91,17 +91,19 @@ export class RedditBot {
   async enterEmail(page, email) {
     try {
       console.log("Waiting for email input field...");
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      await page.waitForSelector('faceplate-text-input#register-email', {
+      await page.waitForSelector("faceplate-text-input#register-email", {
         timeout: 15000,
         visible: true,
       });
 
       console.log("Found email web component, accessing shadow DOM input...");
-      
+
       const inputHandle = await page.evaluateHandle(() => {
-        const webComponent = document.querySelector('faceplate-text-input#register-email');
+        const webComponent = document.querySelector(
+          "faceplate-text-input#register-email"
+        );
         if (!webComponent || !webComponent.shadowRoot) return null;
         return webComponent.shadowRoot.querySelector('input[type="email"]');
       });
@@ -119,10 +121,10 @@ export class RedditBot {
       await this.browserManager.randomDelay(1500, 2500);
 
       console.log("Looking for Continue button...");
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       const continueButton = await page.waitForSelector(
-        'button.continue, button.button-brand',
+        "button.continue, button.button-brand",
         {
           timeout: 10000,
           visible: true,
@@ -140,16 +142,21 @@ export class RedditBot {
   async skipEmailVerification(page, email) {
     try {
       console.log("Looking for email verification page...");
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
-      const verificationInput = await page.$('faceplate-text-input[name="code"]');
+      const verificationInput = await page.$(
+        'faceplate-text-input[name="code"]'
+      );
       if (verificationInput) {
         console.log("Email verification page detected");
-        
-        const skipButtons = await page.$$('button');
+
+        const skipButtons = await page.$$("button");
         for (const button of skipButtons) {
-          const text = await page.evaluate(el => el.textContent.trim(), button);
-          if (text.toLowerCase() === 'skip') {
+          const text = await page.evaluate(
+            (el) => el.textContent.trim(),
+            button
+          );
+          if (text.toLowerCase() === "skip") {
             console.log("Found Skip button, clicking...");
             await button.click();
             await this.browserManager.randomDelay(2000, 3000);
@@ -157,9 +164,11 @@ export class RedditBot {
           }
         }
 
-        console.log("Skip button not found, fetching verification code from email...");
+        console.log(
+          "Skip button not found, fetching verification code from email..."
+        );
         const code = await this.emailService.getVerificationCode(email);
-        
+
         if (code) {
           console.log("Entering verification code...");
           await this.enterVerificationCode(page, code);
@@ -180,33 +189,43 @@ export class RedditBot {
   async enterVerificationCode(page, code) {
     try {
       const inputHandle = await page.evaluateHandle(() => {
-        const webComponent = document.querySelector('faceplate-text-input[name="code"]');
+        const webComponent = document.querySelector(
+          'faceplate-text-input[name="code"]'
+        );
         if (!webComponent || !webComponent.shadowRoot) return null;
         return webComponent.shadowRoot.querySelector('input[type="text"]');
       });
 
       if (!inputHandle) {
-        throw new Error("Could not access verification code input in shadow DOM");
+        throw new Error(
+          "Could not access verification code input in shadow DOM"
+        );
       }
 
       await inputHandle.click();
       await this.browserManager.randomDelay(300, 600);
-      
+
       await inputHandle.type(code, { delay: 100 });
       await this.browserManager.randomDelay(1500, 2500);
 
       console.log("Looking for Continue button...");
-      const continueButton = await page.waitForSelector(
-        'button.button-brand, button:has-text("Continue")',
-        {
-          timeout: 10000,
-          visible: true,
+      const allButtons = await page.$$("button");
+      
+      let clicked = false;
+      for (const button of allButtons) {
+        const text = await page.evaluate((el) => el.textContent.trim(), button);
+        if (text.toLowerCase() === "continue") {
+          console.log("Clicking Continue...");
+          await button.click();
+          await this.browserManager.randomDelay(3000, 5000);
+          clicked = true;
+          break;
         }
-      );
-
-      console.log("Clicking Continue...");
-      await continueButton.click();
-      await this.browserManager.randomDelay(3000, 5000);
+      }
+      
+      if (!clicked) {
+        throw new Error("Could not find Continue button");
+      }
     } catch (error) {
       throw new Error(`Failed to enter verification code: ${error.message}`);
     }
@@ -214,18 +233,22 @@ export class RedditBot {
 
   async fillRegistrationForm(page, username, password) {
     try {
-      console.log("Step 3: Filling password (using Reddit's default username)...");
+      console.log(
+        "Step 3: Filling password (using Reddit's default username)..."
+      );
 
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       console.log("Looking for password input...");
-      await page.waitForSelector('faceplate-text-input#register-password', {
+      await page.waitForSelector("faceplate-text-input#register-password", {
         timeout: 10000,
         visible: true,
       });
 
       const passwordInputHandle = await page.evaluateHandle(() => {
-        const webComponent = document.querySelector('faceplate-text-input#register-password');
+        const webComponent = document.querySelector(
+          "faceplate-text-input#register-password"
+        );
         if (!webComponent || !webComponent.shadowRoot) return null;
         return webComponent.shadowRoot.querySelector('input[type="password"]');
       });
@@ -242,7 +265,7 @@ export class RedditBot {
       await this.browserManager.randomDelay(1500, 2500);
 
       console.log("Looking for Continue button...");
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       const continueButton = await page.waitForSelector(
         'button[type="submit"].create, button.create, button[type="submit"]',
@@ -263,17 +286,50 @@ export class RedditBot {
   async skipAboutYou(page) {
     try {
       console.log('Step 4: Checking for "About you" page...');
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      const skipButton = await page.$('button:has-text("Skip")');
-      if (skipButton) {
-        console.log('Found "About you" page, clicking Skip...');
-        await skipButton.click();
-        await this.browserManager.randomDelay(2000, 3000);
-        return true;
+      const aboutYouModal = await page.$('auth-flow-modal[pagename="onboarding_gender_collection"]');
+      if (!aboutYouModal) {
+        console.log('No "About you" page found, continuing...');
+        return false;
       }
 
-      console.log('No "About you" page found, continuing...');
+      console.log('"About you" page detected');
+
+      const allButtons = await page.$$("button");
+      
+      for (const button of allButtons) {
+        try {
+          const text = await page.evaluate((el) => el.textContent.trim(), button);
+          const name = await page.evaluate((el) => el.getAttribute('name'), button);
+          
+          if (name === "skip" || text.toLowerCase() === "skip") {
+            console.log('Found Skip button, clicking...');
+            await button.click();
+            await this.browserManager.randomDelay(2000, 3000);
+            return true;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+
+      console.log('Skip button not found, clicking "Man" option...');
+      for (const button of allButtons) {
+        try {
+          const text = await page.evaluate((el) => el.textContent.trim(), button);
+          if (text === "Man") {
+            console.log('Clicking "Man" button...');
+            await button.click();
+            await this.browserManager.randomDelay(2000, 3000);
+            return true;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+
+      console.log('Could not skip "About you" page');
       return false;
     } catch (error) {
       console.log("Error checking About you page:", error.message);
@@ -284,10 +340,10 @@ export class RedditBot {
   async selectInterests(page) {
     try {
       console.log("Step 5: Checking for Interests page...");
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      const interestsTitle = await page.$("text=/Interests/i");
-      if (!interestsTitle) {
+      const pageContent = await page.evaluate(() => document.body.textContent);
+      if (!pageContent.toLowerCase().includes("interests")) {
         console.log("Interests page not found, continuing...");
         return false;
       }
@@ -338,27 +394,21 @@ export class RedditBot {
       await this.browserManager.randomDelay(1000, 2000);
 
       console.log("Looking for Continue button...");
-      const continueButton = await page.waitForSelector(
-        'button:has-text("continue"), button[type="button"]',
-        {
-          timeout: 10000,
-        }
-      );
-
-      if (continueButton) {
-        const isDisabled = await page.evaluate(
-          (btn) => btn.disabled,
-          continueButton
-        );
-        if (!isDisabled) {
-          console.log("Clicking Continue...");
-          await continueButton.click();
-          await this.browserManager.randomDelay(2000, 3000);
-          return true;
-        } else {
-          console.log(
-            "Continue button is disabled, may need to select more interests"
-          );
+      const allButtons = await page.$$("button");
+      
+      for (const button of allButtons) {
+        const text = await page.evaluate((el) => el.textContent.trim(), button);
+        if (text.toLowerCase() === "continue") {
+          const isDisabled = await page.evaluate((btn) => btn.disabled, button);
+          if (!isDisabled) {
+            console.log("Clicking Continue...");
+            await button.click();
+            await this.browserManager.randomDelay(2000, 3000);
+            return true;
+          } else {
+            console.log("Continue button is disabled, may need to select more interests");
+          }
+          break;
         }
       }
 
