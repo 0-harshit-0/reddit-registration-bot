@@ -41,12 +41,7 @@ export class RedditBot {
       await this.enterEmail(page, email);
 
       console.log("Step 2: Checking for email verification...");
-      const skipped = await this.skipEmailVerification(page, email);
-      if (!skipped) {
-        console.log(
-          "Email verification page not found or cannot skip, proceeding..."
-        );
-      }
+      await this.skipEmailVerification(page, email);
 
       await this.fillRegistrationForm(page, username, password);
 
@@ -140,50 +135,37 @@ export class RedditBot {
   }
 
   async skipEmailVerification(page, email) {
-    try {
-      console.log("Looking for email verification page...");
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+    console.log("Looking for email verification page...");
+    await new Promise((resolve) => setTimeout(resolve, 3000));
 
-      const verificationInput = await page.$(
-        'faceplate-text-input[name="code"]'
-      );
-      if (verificationInput) {
-        console.log("Email verification page detected");
-
-        const skipButtons = await page.$$("button");
-        for (const button of skipButtons) {
-          const text = await page.evaluate(
-            (el) => el.textContent.trim(),
-            button
-          );
-          if (text.toLowerCase() === "skip") {
-            console.log("Found Skip button, clicking...");
-            await button.click();
-            await this.browserManager.randomDelay(2000, 3000);
-            return true;
-          }
-        }
-
-        console.log(
-          "Skip button not found, fetching verification code from email..."
-        );
-        const code = await this.emailService.getVerificationCode(email);
-
-        if (code) {
-          console.log("Entering verification code...");
-          await this.enterVerificationCode(page, code);
-          return true;
-        } else {
-          throw new Error("Could not retrieve verification code");
-        }
-      }
-
-      console.log("No email verification page detected");
-      return false;
-    } catch (error) {
-      console.log("Error checking verification:", error.message);
-      return false;
+    const verificationInput = await page.$('faceplate-text-input[name="code"]');
+    if (!verificationInput) {
+      console.log("No email verification page detected, continuing...");
+      return;
     }
+
+    console.log("Email verification page detected");
+
+    const skipButtons = await page.$$("button");
+    for (const button of skipButtons) {
+      const text = await page.evaluate((el) => el.textContent.trim(), button);
+      if (text.toLowerCase() === "skip") {
+        console.log("Found Skip button, clicking...");
+        await button.click();
+        await this.browserManager.randomDelay(2000, 3000);
+        return;
+      }
+    }
+
+    console.log("Skip button not found, fetching verification code from email...");
+    const code = await this.emailService.getVerificationCode(email);
+
+    if (!code) {
+      throw new Error("Could not retrieve verification code from email");
+    }
+
+    console.log("Entering verification code...");
+    await this.enterVerificationCode(page, code);
   }
 
   async enterVerificationCode(page, code) {
@@ -284,57 +266,51 @@ export class RedditBot {
   }
 
   async skipAboutYou(page) {
-    try {
-      console.log('Step 4: Checking for "About you" page...');
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+    console.log('Step 4: Checking for "About you" page...');
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      const aboutYouModal = await page.$('auth-flow-modal[pagename="onboarding_gender_collection"]');
-      if (!aboutYouModal) {
-        console.log('No "About you" page found, continuing...');
-        return false;
-      }
-
-      console.log('"About you" page detected');
-
-      const allButtons = await page.$$("button");
-      
-      for (const button of allButtons) {
-        try {
-          const text = await page.evaluate((el) => el.textContent.trim(), button);
-          const name = await page.evaluate((el) => el.getAttribute('name'), button);
-          
-          if (name === "skip" || text.toLowerCase() === "skip") {
-            console.log('Found Skip button, clicking...');
-            await button.click();
-            await this.browserManager.randomDelay(2000, 3000);
-            return true;
-          }
-        } catch (e) {
-          continue;
-        }
-      }
-
-      console.log('Skip button not found, clicking "Man" option...');
-      for (const button of allButtons) {
-        try {
-          const text = await page.evaluate((el) => el.textContent.trim(), button);
-          if (text === "Man") {
-            console.log('Clicking "Man" button...');
-            await button.click();
-            await this.browserManager.randomDelay(2000, 3000);
-            return true;
-          }
-        } catch (e) {
-          continue;
-        }
-      }
-
-      console.log('Could not skip "About you" page');
-      return false;
-    } catch (error) {
-      console.log("Error checking About you page:", error.message);
-      return false;
+    const aboutYouModal = await page.$('auth-flow-modal[pagename="onboarding_gender_collection"]');
+    if (!aboutYouModal) {
+      console.log('No "About you" page found, continuing...');
+      return;
     }
+
+    console.log('"About you" page detected');
+
+    const allButtons = await page.$$("button");
+    
+    for (const button of allButtons) {
+      try {
+        const text = await page.evaluate((el) => el.textContent.trim(), button);
+        const name = await page.evaluate((el) => el.getAttribute('name'), button);
+        
+        if (name === "skip" || text.toLowerCase() === "skip") {
+          console.log('Found Skip button, clicking...');
+          await button.click();
+          await this.browserManager.randomDelay(2000, 3000);
+          return;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+
+    console.log('Skip button not found, clicking "Man" option...');
+    for (const button of allButtons) {
+      try {
+        const text = await page.evaluate((el) => el.textContent.trim(), button);
+        if (text === "Man") {
+          console.log('Clicking "Man" button...');
+          await button.click();
+          await this.browserManager.randomDelay(2000, 3000);
+          return;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+
+    throw new Error('Could not skip "About you" page - no Skip or Man button found');
   }
 
   async selectInterests(page) {
