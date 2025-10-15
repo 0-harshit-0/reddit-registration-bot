@@ -269,29 +269,25 @@ export class RedditBot {
     console.log('Step 4: Checking for "About you" page...');
     await new Promise((resolve) => setTimeout(resolve, 3000));
 
-    await page.waitForSelector('button[name="genderEnum"]', { timeout: 10000 });
+    await page.waitForSelector('button[name="skip"]', { timeout: 10000 });
     console.log('"About you" page detected');
 
-    const allButtons = await page.$$("button");
-    console.log(`Found ${allButtons.length} buttons on page`);
-    
-    for (const button of allButtons) {
-      try {
-        const name = await page.evaluate((el) => el.getAttribute('name'), button);
-        
-        if (name === "skip") {
-          console.log('Found Skip button by name attribute, clicking...');
-          await button.click();
-          await this.browserManager.randomDelay(2000, 3000);
-          return;
-        }
-      } catch (e) {
-        continue;
-      }
-    }
+   // Find all buttons inside any shadow roots under the whole document
+    // const allButtons = await page.$$('>>> button');
+    // for (const handle of allButtons) {
+    //   const text = await handle.evaluate(el => el.innerText?.trim() || '');
+    //   console.log(handle, text)
+    //   if (text.toLowerCase() === 'skip') {
+    //     await handle.click();
+    //     break;
+    //   }
+    // }
+
+    // const skipButton = await page.$('button[name="skip"]');
+    // await skipButton.click();
 
     console.log('Skip button not found, clicking "Man" option...');
-    const manButton = await page.$('button[name="genderEnum"][value="MALE"]');
+    const manButton = await page.$('>>> button[name="genderEnum"][value="MALE"]');
     if (manButton) {
       console.log('Clicking "Man" button...');
       await manButton.click();
